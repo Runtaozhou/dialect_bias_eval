@@ -1,0 +1,28 @@
+Code accompanying the TwitterAAE v1 release.
+
+If you use this code or data, please cite the following paper:
+
+S. Blodgett, L. Green, and B. O'Connor. Demographic Dialectal Variation
+in Social Media: A Case Study of African-American English. Proceedings of EMNLP.
+Austin. 2016.
+
+Website: http://slanglab.cs.umass.edu/TwitterLangID/
+
+************************
+
+Tweets can be classified with our demographic classifier with classify.py.
+The classifier uses the Python module langid.py, which can be downloaded here
+(https://github.com/saffsd/langid.py) or installed using pip (pip install
+langid).
+
+The demographic model's full vocabulary and count tables (averaged over the 
+last 50 Gibbs sampling iterations) are in vocab.txt and model_count_table.txt, 
+respectively. The demographic predictions for a tweet can be calculated by 
+loading the model with predict.load_model(model_count_table) and calling 
+predict.predict(tweet). The model only needs to be loaded once per session.
+
+Tokenizing for the paper was done using twokenize.py and emoji detection was
+done with emoji.py; both are provided.
+
+The evaluation of our annotated dataset for the paper was done with evaluate.py
+in the research/ directory; we include it for replicability.

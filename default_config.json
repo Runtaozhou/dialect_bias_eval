@@ -1,0 +1,19 @@
+{
+    "p2g_model": "./PhonATe/byt5-aal-p2g", 
+    "g2p_model": "charsiu/g2p_multilingual_byT5_small_100", 
+    "tok": "google/byt5-small", 
+    "device": "cuda:0", 
+    "probs": {
+         "dpt_simp":      0.2,
+         "th_front":      0.2,
+         "non_rhot":      0.2,
+         "str_back":      0.2,
+         "l_del":         0.2,
+         "fin_dvc":       0.2,
+         "g_drop":        0.2,
+         "hap":           0.2,
+         "cons_red":      0.2,
+         "stress_drop":   0.2
+            }, 
+    "augs": ["dpt_simp", "th_front", "non_rhot", "str_back", "l_del", "fin_dvc", "g_drop", "hap", "cons_red", "stress_drop"]
+}
