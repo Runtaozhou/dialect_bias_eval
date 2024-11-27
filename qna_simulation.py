@@ -238,13 +238,14 @@ def run_simulation(dataset_names, model_name, aave, n_run, aave_instruct, conver
     total_subject_list = []
     for subject in tqdm(dataset_names):
         try:
-            question_list, answer_list , letter_answer_list, pure_question_list, correct_answer_list, subject_list = simulate_one_question(                                                          model_name = model_name, 
-                                                                                subject, 
-                                                                                aave = aave, 
-                                                                                aave_instruct = aave_instruct,
-                                                                                aal_phonate = aal_phonate,
-                                                                                n_run = n_run, 
-                                                                                converter_type = converter_type)
+            question_list, answer_list , letter_answer_list, pure_question_list, correct_answer_list, subject_list = simulate_one_question( 
+                model_name=model_name, 
+                dataset_name = subject, 
+                aave = aave, 
+                aave_instruct = aave_instruct,
+                aal_phonate = aal_phonate,
+                n_run = n_run, 
+                converter_type = converter_type)
             total_question_list.extend(question_list)
             total_answer_list.extend(answer_list)
             total_letter_answer_list.extend(letter_answer_list)
