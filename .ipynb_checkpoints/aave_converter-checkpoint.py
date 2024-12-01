@@ -57,7 +57,6 @@ def aave_converter(sentence, aal_phonate, converter_type = "multi_value"):
             if converted[0] == '"':
                 converted = converted[1:-1]
         elif converter_type == "llm_rulebased_persona":
-            print("converting the sentence using aave persona")
             converted = aae_rulebased_persona('gpt-3.5', sentence)
             if converted[0] == '"':
                 converted = converted[1:-1]

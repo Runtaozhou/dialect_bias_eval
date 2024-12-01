@@ -5,13 +5,33 @@ Util functions
 import re
 import os
 import time
+import math
+from tqdm import tqdm
 import pandas as pd
 import evaluate 
 import random
 import datasets
+import convokit
+import matplotlib.pyplot as plt
+import seaborn as sns
+from typing import List, Dict, Set
+from random import sample 
+from collections import defaultdict
+from collections import Counter
+from readability.readability import Readability
 from multivalue import Dialects
 from pydantic import BaseModel, validator
 from llm_chain import create_chain
+from convokit import Corpus, Speaker, Utterance
+from convokit import download
+from convokit import Classifier
+from convokit import PolitenessStrategies
+from convokit import TextParser
+from scipy.sparse import csr_matrix
+from sklearn.metrics import classification_report
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
 
 # Define the pydantic model
 class DialectDetectionOutput(BaseModel):
@@ -125,3 +145,193 @@ def extract_model_accuracy(df):
     df['letter_answer'] = df['letter_answer'].str.replace(r'[()]', '', regex=True)
     matches_df = (df['letter_answer'] == df['correct_answer']).sum()/len(df)
     return matches_df 
+
+
+
+'''
+###################################
+build the politeness classifier with the corpus of widipedia and stack exchange 
+params: 
+N/A
+return:
+a politeness classifer
+###################################
+'''   
+def build_politeness_classifier():
+    print("initializing the classifier...")
+    random.seed(10)
+    parser = TextParser(verbosity=1000)
+    ps = PolitenessStrategies()
+    ## train the classifier on the corpus of widipedia and stack exchange
+    # load the corpus
+    wiki_corpus = Corpus(filename=download("wikipedia-politeness-corpus"))
+    utterance_list = [wiki_corpus.get_utterance(i) for i in wiki_corpus.get_utterance_ids()]
+    stack_corpus = Corpus(filename=download("stack-exchange-politeness-corpus"))
+    combine_corpus = stack_corpus.add_utterances(utterance_list)
+    neutral_utterances = [utt for utt in combine_corpus.iter_utterances() if utt.meta["Binary"] == 0]
+    polite_utterances = [utt for utt in combine_corpus.iter_utterances() if utt.meta["Binary"] == 1]
+    # balance the training dataset. 
+    sampled_neutral1 = sample(neutral_utterances,len(polite_utterances))
+    sampled_neutral1.extend(polite_utterances)
+    combine_corpus_polite = Corpus(utterances=sampled_neutral1)
+    combine_corpus_polite = parser.transform(combine_corpus_polite)
+    combine_corpus_polite = ps.transform(combine_corpus_polite, markers=True)
+    labeller_polite = lambda utt: 0 if utt.meta['Binary'] == 0 else 1
+    clf_polite = Classifier(obj_type="utterance", 
+                            pred_feats=["politeness_strategies"], 
+                            labeller=labeller_polite,
+                            )
+    clf_polite.fit(combine_corpus_polite)
+    return clf_polite
+        
+'''
+###################################
+classify the sentences as the polite or impolite based on text in the standard qna df in qna dataset
+
+params: 
+df - pd.DataFrame object that stores the questions and the answers
+text_attribute: -str, the column name in that df that stores all the answers. default to "answer"
+
+return:
+a list that have the number of the sentences predicted as polite and the number of sentences predicted as impolite. [num_polite, num_impolite]
+###################################
+'''        
+def predict_politeness(clf, df, text_attribute : str = "answer"):
+    speaker = Speaker()
+    parser = TextParser(verbosity=1000)
+    ps = PolitenessStrategies()
+    utter_lst = []
+    for i in range(len(df)):
+        utter = Utterance(speaker =speaker, text = df.loc[i][text_attribute], id = str(i))
+        utter_lst.append(utter)
+    corpus = Corpus(utterances =utter_lst)
+    test_ids = corpus.get_utterance_ids()
+    corpus = parser.transform(corpus)
+    corpus = ps.transform(corpus, markers=True)
+    print('--------prediciting politeness-----------')
+    pred = clf.transform(corpus)
+    df_pred_polite = clf.summarize(pred)
+    polite_num = sum(df_pred_polite['prediction'])
+    # creating df with neutral utterance
+    df_pred_nuetral = df_pred_polite[df_pred_polite['prediction'] == 0]
+    nuetral_num = len(df_pred_nuetral)
+    return [polite_num, nuetral_num]
+
+'''
+###################################
+assign the readability score to the answers in the qna dataframe using the flesch kincaid method. 
+
+params: 
+df - pd.DataFrame object that stores the questions and the answers
+
+return:
+a list of readability scores that assig to each of the sentence in the answer column 
+###################################
+'''      
+        
+def get_readability_score(df):
+    score =  []
+    for i in tqdm(range(len(df))):
+        try:
+            r = Readability(df['answer'][i]).flesch()
+            score.append(r.score) 
+        except:
+            continue
+    return score      
+        
+'''
+categorize the score into different grade level. 
+'''
+
+def categorize_score(score):
+    if 90.0 <= score <= 100.0:
+        return "5th grade"
+    elif 80.0 <= score < 90.0:
+        return "6th grade"
+    elif 70.0 <= score < 80.0:
+        return "7th grade"
+    elif 60.0 <= score < 70.0:
+        return "8th & 9th grade"
+    elif 50.0 <= score < 60.0:
+        return "10th to 12th grade"
+    elif 30.0 <= score < 50.0:
+        return "College"
+    elif 10.0 <= score < 30.0:
+        return "College graduate"
+    elif 0.0 <= score < 10.0:
+        return "Professional"
+    else:
+        return "Invalid Score"
+        
+'''
+create the readability score plot using the readability df we produced. 
+'''        
+def create_readability_plot(df, model_name:str):
+    data = {
+        "Grade Level": df[df['model']==model_name]['grade'],
+        "Question Dialect": df[df['model']==model_name]['question'],
+        "Frequency": df[df['model']==model_name]['frequency'] # Notice one value is 0
+    }
+    df = pd.DataFrame(data)
+    
+    # Plot
+    plt.figure(figsize=(11, 6))
+    ax = sns.barplot(
+        data=df,
+        x="Grade Level",
+        y="Frequency",
+        hue="Question Dialect",
+        palette="muted"
+    )
+    
+    # Adding values on top of the bars
+    for p in ax.patches:
+        if p.get_height() > 0:  # Only add text for bars with height > 0
+            ax.annotate(
+                f'{p.get_height():.0f}',  # Format the value as an integer
+                (p.get_x() + p.get_width() / 2., p.get_height()),  # Position at bar center
+                ha='center',  # Horizontal alignment
+                va='center',  # Vertical alignment
+                xytext=(0, 8),  # Offset text position by 8 points
+                textcoords='offset points'
+            )
+    
+    # Adding labels
+    plt.title(f"Distribution Flesch-Kincaid Readability Grade Level Equivalent of the Explanations({model_name})", fontsize=16)
+    plt.xlabel("Grade Level", fontsize=12)
+    plt.ylabel("Frequency", fontsize=12)
+    plt.xticks(rotation = 25)
+    
+    # Show the plot
+    # plt.savefig("flesch_kincaid_readability_grade_gemma2.png", dpi=300, format='png', bbox_inches='tight')
+    plt.legend(title="Question Dialect")
+    plt.tight_layout()
+    plt.show()
+
+
+
+'''
+calculates entropy 
+
+params: data - list of elements.
+'''
+
+def calculate_entropy(data):
+    # Count the frequency of each unique element
+    counts = Counter(data)
+    
+    # Total number of elements
+    total_elements = len(data)
+    
+    # Calculate the entropy
+    entropy = 0
+    for count in counts.values():
+        # Calculate the probability of each unique element
+        p = count / total_elements
+        # Apply the entropy formula: -p * log2(p)
+        entropy -= p * math.log2(p)
+    
+    return entropy
+
+
+        
