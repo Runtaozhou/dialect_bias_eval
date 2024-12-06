@@ -60,6 +60,10 @@ def aave_converter(sentence, aal_phonate, converter_type = "multi_value"):
             converted = aae_rulebased_persona('gpt-3.5', sentence)
             if converted[0] == '"':
                 converted = converted[1:-1]
+        elif converter_type == "aavenue":
+            converted = aae_aavenue_method('gpt-3.5', sentence)
+            if converted[0] == '"':
+                converted = converted[1:-1]
         # no change         
         else:
             converted = sentence
@@ -75,6 +79,37 @@ def replace_words(text, replacement_dict):
         text = re.sub(r'\b' + re.escape(word) + r'\b', replacement, text)
     
     return text
+
+def aae_aavenue_method(model_name, sentence):
+    answer_list = []
+    counter = 0 
+    # Define the prompt template for multiple-choice questions
+    template = "Translate the following sentence from Standard English to African American Vernacular English (AAVE).\
+    Ensure the translation maintains the structure of the original sentence without adding extra information.\
+    Examples for reference: 1. I was bewildered, but I knew dat it was no gud asking his ass to explain.\
+    2. Cochran pontificated windily for da camera.\
+    3.I don’t want them to follow in my footsteps, as I ain’t go to no college, but I want them to go.\
+    The sentence is: {sentence}\
+    Format the translated sentence exactly like this: 'The translation is: ...'"
+    input_variables = ["sentence", "rules"]
+    #create chain
+    chain = create_chain(model_name, template, input_variables)
+    input_data = {"sentence": sentence}
+    # invoke the questions
+    response = chain.invoke(input_data)
+    text = response['text']
+    pattern = r"The translation is:\s*(.*)"
+    match = re.search(pattern, text)
+    if match:
+        # Extract the sentence that follows "The translated sentence is:"
+        translated_sentence = match.group(1)
+        # print(f"The sentence after 'The translated sentence is:' is: {translated_sentence}")
+    else:
+        translated_sentence = sentence
+        # print("No match found.")
+    # last step manual convert: 
+    return translated_sentence
+    
 
 def aae_rulebased(model_name, sentence):
     rules = "1. Null copula: Verbal copula is deleted (e.g., “he a delivery man” → “he’s a delivery man”).\
