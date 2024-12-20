@@ -28,10 +28,12 @@ from convokit import Classifier
 from convokit import PolitenessStrategies
 from convokit import TextParser
 from scipy.sparse import csr_matrix
+import scipy.stats as stats
 from sklearn.metrics import classification_report
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
+
 
 # Define the pydantic model
 class DialectDetectionOutput(BaseModel):
@@ -333,5 +335,64 @@ def calculate_entropy(data):
     
     return entropy
 
+def get_avg_length(df1, df2 ):
+    total_token1 = 0
+    total_token2 = 0
+    df_token1 = []
+    df_token2 = []
+    for i in range(len(df1)):
+        total_token1 +=len(df1['answer'][i].split())
+        df_token1.append(len(df1['answer'][i].split()))
+    for i in range(len(df2)):
+        total_token2 +=len(df2['answer'][i].split())
+        df_token2.append(len(df2['answer'][i].split()))
+    avg1 = total_token1/len(df1)
+    avg2 = total_token2/len(df2)
+    t_statistic, p_value = stats.ttest_ind(df_token1, df_token2)
+    return avg1, avg2, t_statistic, p_value
 
+
+
+'''
+creates dataframe for linguistic marker
+
+params: df-  pd.DataFrame object, the dataframe that you need to extract linguistic marker from
+model - string, the name of the model that produced the explanation (eg, llama3.1, gemma2, mistral etc)
+dialect - AAE (african american english) or SAE (standard american english)
+
+'''
+    
+def create_ling_marker_df (df, model, dialect):
+    merged_counter_sae = Counter()
+    columns = ['ppron','i','you','we','they','social','posemo','negemo','tentat','certain','percept'] 
+    token_num_sae = 0
+    temp_num_sae = 0
+    temp_merged_counter_sae = Counter()
+    df_count = pd.DataFrame(columns = columns)
+    for i in range(len(df)):
+        answer  = df.loc[i]['answer']
+        count_tokens = tokenize(answer)
+        for tok in count_tokens:
+            token_num_sae+=1
+            temp_num_sae+=1
+        answer_tokens = tokenize(answer)
+        if temp_num_sae >=1000:
+            temp_normalized_counter_sae = Counter({word: (count / temp_num_sae)*1000 for word, count in temp_merged_counter_sae.items()})
+            temp_count = []
+            for i in columns:
+                temp_count.append(temp_normalized_counter_sae[i])
+            df_count.loc[len(df_count)] = temp_count
+            temp_num_sae = 0
+            temp_merged_counter_sae = Counter()
+    
+        # now flatmap over all the categories in all of the tokens using a generator:
+        answer_counts = Counter(category for token in answer_tokens for category in parse(token))
+        # and print the results:
+        merged_counter_sae +=answer_counts
+        temp_merged_counter_sae +=answer_counts
+    normalized_counter_sae = Counter({word: (count / token_num_sae)*1000 for word, count in merged_counter_sae.items()})
+    ling_count = [model, dialect]
+    for i in columns:
+        ling_count.append(normalized_counter_sae[i])
+    return df_count
         
