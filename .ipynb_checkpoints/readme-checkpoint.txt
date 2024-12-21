@@ -1,4 +1,0 @@
-Due the file size issue, Please download the folder PhonATe using this link: https://drive.google.com/file/d/1zCvxg_Ug8uAuMt7HT2RGfeTG8dUeNIc6/view?usp=sharing
-and add PhonATe under your project directory. 
-
-In order to understand and use our qna simulator, please run the notebook dialect_bias_demo.ipynb
