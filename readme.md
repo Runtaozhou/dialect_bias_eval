@@ -7,7 +7,12 @@ The analysis will assess the accuracy of the responses and perform a detailed te
 
 ![Alt text](images/flowchart.png "Optional title")
 
+
+Accuracy evaluation indicates that the LLMs performs a lot worse when the user ask questions in AAE rather than SAE. 
+
+![Alt text](images/model_accuracy.png "Optional title")
+
 Due the file size issue, Please download the folder PhonATe using this link: https://drive.google.com/file/d/1zCvxg_Ug8uAuMt7HT2RGfeTG8dUeNIc6/view?usp=sharing
 and add PhonATe under your project directory. 
 
-In order to understand and use our qna simulator, please run the notebook dialect_bias_demo.ipynb
+In order to understand and use our qna simulator, please run the notebook project_experiment_demo.ipynb
