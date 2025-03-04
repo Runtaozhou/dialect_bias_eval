@@ -4,7 +4,6 @@ This project aims to evaluate the bias in responses from various large language 
 
 The analysis will assess the accuracy of the responses and perform a detailed textual analysis of the explanations provided. Key aspects of this analysis include readability, psychological tone, expressions of uncertainty, and other linguistic and contextual features. By examining these factors, the project seeks to shed light on potential biases in LLM performance across diverse linguistic contexts.
 
-The demo code can be found in project_experiment_demo.ipynb
 
 ![Alt text](images/flowchart.png "Optional title")
 
