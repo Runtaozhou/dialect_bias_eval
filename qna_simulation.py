@@ -18,6 +18,44 @@ from multivalue import Dialects
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+# Define prompt strategies
+PROMPT_STRATEGIES = {
+    "expert_teacher": (
+        "You are an experienced teacher with expertise in working with students from diverse linguistic backgrounds. "
+        "Your goal is to explain concepts clearly while respecting and accommodating different language varieties. "
+        "Please read the following question and provide your response: {question}"
+    ),
+    "cultural_context": (
+        "The following question may be presented in different language varieties, including African American English (AAE) "
+        "or Standard American English (SAE). Each variety has its own valid grammatical rules and cultural context. "
+        "Please analyze the question with respect to its linguistic context: {question}"
+    ),
+    "dialect_recognition": (
+        "When responding to this question, be aware that it may be expressed in different English dialects. "
+        "Apply your understanding of dialect-specific features and grammatical patterns. "
+        "Consider all dialectal variations as equally valid forms of expression: {question}"
+    ),
+    "readability_focus": (
+        "Please ensure your response is clear and accessible across different English varieties. "
+        "Focus on maintaining consistent meaning and comprehension regardless of the dialect used. "
+        "Analyze the following question: {question}"
+    ),
+    "multi_strategy": (
+        "As an experienced educator skilled in working with diverse linguistic backgrounds, please address this question while:\n"
+        "1. Recognizing and respecting different language varieties (including AAE and SAE)\n"
+        "2. Ensuring clear communication across dialects\n"
+        "3. Maintaining consistent comprehension\n"
+        "4. Acknowledging the validity of different grammatical patterns\n\n"
+        "Question: {question}"
+    ),
+    "default": (
+        "You are stuck with a multiple choice question: {question}. You would like to ask a "
+        "Large Language Model for help. Please generate only the question you would ask the "
+        "Large Language Model, The question needs to include the original multiple choice question and the 4 options"
+        "Please make sure that you pretend to be a human and the question should sound as realistic as possible"
+    )
+}
+
 # Define a Pydantic model for the output format
 class QuestionResponse(BaseModel):
     question: str  # Only the generated question
@@ -45,7 +83,7 @@ In function generate:
 '''
 
 class question_generator:
-    def __init__(self, dataset_name, category_name, converter_type, aal_phonate, aave_instruct = False, aave = True):
+    def __init__(self, dataset_name, category_name, converter_type, aal_phonate, aave_instruct=False, aave=True, prompt_strategy="default"):
         self.dataset_name = dataset_name
         self.category_name = category_name
         self.model_name = "gpt-3.5"
@@ -58,6 +96,7 @@ class question_generator:
         self.converter_type  = converter_type
         self.aave_instruct = aave_instruct
         self.aave = aave
+        self.prompt_strategy = prompt_strategy
         self.length = len(self.dataset)
         self.question_list = []
         self.pure_question_list = []
@@ -88,13 +127,8 @@ class question_generator:
             if self.aave_instruct ==True:
                 text = f"Aye fam, I'm stuck on this multiple choice question: {question_text}. Which one I'm posed to pick? Hook me up with some clues or sum"
             else:
-                # Define the prompt template for multiple-choice questions
-                template = (
-                    "You are stuck with a multiple choice question: {question}. You would like to ask a "
-                    "Large Language Model for help. Please generate only the question you would ask the "
-                    "Large Language Model, The question needs to include the original multiple choice question and the 4 options"
-                    "Please make sure that you pretend to be a human and the question should sound as realistic as possible"
-                )
+                # Use the selected prompt strategy
+                template = PROMPT_STRATEGIES.get(self.prompt_strategy, PROMPT_STRATEGIES["default"])
                 input_variables = ["question"]
             
                 # Create the chain
@@ -151,6 +185,40 @@ class answer_generator:
             text = response['text']
             self.answer_lst.append(text)
         return self.answer_lst
+
+class explanation_generator:
+    def __init__(self, model_name, question_lst, answer_lst):
+        self.model_name = model_name
+        self.question_lst = question_lst
+        self.answer_lst = answer_lst
+        self.explanation_lst = []
+    
+    def generate(self):
+        for question, answer in zip(self.question_lst, self.answer_lst):
+            # Define the prompt template for explanation
+            template = (
+                "For the following question and answer:\n"
+                "Question: {question}\n"
+                "Answer: {answer}\n\n"
+                "Please provide a detailed explanation of why this answer is correct. "
+                "Include the reasoning process, relevant concepts, and any assumptions made. "
+                "Your explanation should be clear and educational, helping someone understand "
+                "not just what the answer is, but why it's correct."
+            )
+            input_variables = ["question", "answer"]
+        
+            # Create the chain
+            chain = create_chain(self.model_name, template, input_variables)
+            input_data = {
+                "question": question,
+                "answer": answer
+            }
+            
+            # Invoke the explanation generation
+            response = chain.invoke(input_data)
+            text = response['text']
+            self.explanation_lst.append(text)
+        return self.explanation_lst
 
 '''
 ################################################################
@@ -219,20 +287,28 @@ params:
 ################################################################
 '''
 
-def simulate_one_question ( model_name, dataset_name, category_name, aal_phonate, n_run, aave, aave_instruct, converter_type):
+def simulate_one_question(model_name, dataset_name, category_name, aal_phonate, n_run, aave, aave_instruct, converter_type, prompt_strategy="default", get_explanation=False):
     q_generator = question_generator(
-                                            dataset_name = dataset_name,
-                                            category_name = category_name, 
-                                            aal_phonate = aal_phonate, 
-                                            aave_instruct = aave_instruct,
-                                            aave = aave,
-                                            converter_type = converter_type)
-    question_list, pure_question_list, correct_answer_list, subject_list = q_generator.generate(n_run = n_run)
-    a_generator = answer_generator(model_name = model_name, question_lst = question_list)
+        dataset_name=dataset_name,
+        category_name=category_name, 
+        aal_phonate=aal_phonate, 
+        aave_instruct=aave_instruct,
+        aave=aave,
+        converter_type=converter_type,
+        prompt_strategy=prompt_strategy
+    )
+    question_list, pure_question_list, correct_answer_list, subject_list = q_generator.generate(n_run=n_run)
+    a_generator = answer_generator(model_name=model_name, question_lst=question_list)
     answer_list = a_generator.generate()
-    a_extractor = answer_extractor(answer_lst = answer_list)
+    a_extractor = answer_extractor(answer_lst=answer_list)
     letter_answer_list = a_extractor.generate()
-    return question_list,answer_list,letter_answer_list, pure_question_list,correct_answer_list, subject_list
+    
+    explanation_list = []
+    if get_explanation:
+        e_generator = explanation_generator(model_name=model_name, question_lst=question_list, answer_lst=answer_list)
+        explanation_list = e_generator.generate()
+    
+    return question_list, answer_list, letter_answer_list, pure_question_list, correct_answer_list, subject_list, explanation_list
 
 
 '''
@@ -249,38 +325,54 @@ params:
 ################################################################
 '''
     
-def run_simulation( dataset_name, category_names, model_name, aave, n_run, aave_instruct, converter_type):
-    aal_phonate = AALPhonate(config = 'default_config.json')
+def run_simulation(dataset_name, category_names, model_name, aave, n_run, aave_instruct, converter_type, prompt_strategy="default", get_explanation=False):
+    aal_phonate = AALPhonate(config='default_config.json')
     total_question_list = []
     total_answer_list = []
     total_letter_answer_list = []
     total_pure_question_list = []
     total_correct_answer_list = []
     total_subject_list = []
+    total_explanation_list = []
+    
     for subject in tqdm(category_names):
         try:
-            question_list, answer_list , letter_answer_list, pure_question_list, correct_answer_list, subject_list = simulate_one_question(
-                dataset_name = dataset_name,
+            question_list, answer_list, letter_answer_list, pure_question_list, correct_answer_list, subject_list, explanation_list = simulate_one_question(
+                dataset_name=dataset_name,
                 model_name=model_name, 
-                category_name = subject, 
-                aave = aave, 
-                aave_instruct = aave_instruct,
-                aal_phonate = aal_phonate,
-                n_run = n_run, 
-                converter_type = converter_type)
+                category_name=subject, 
+                aave=aave, 
+                aave_instruct=aave_instruct,
+                aal_phonate=aal_phonate,
+                n_run=n_run, 
+                converter_type=converter_type,
+                prompt_strategy=prompt_strategy,
+                get_explanation=get_explanation
+            )
             total_question_list.extend(question_list)
             total_answer_list.extend(answer_list)
             total_letter_answer_list.extend(letter_answer_list)
             total_correct_answer_list.extend(correct_answer_list)
             total_pure_question_list.extend(pure_question_list)
-            total_subject_list.extend(subject_list)   
+            total_subject_list.extend(subject_list)
+            if get_explanation:
+                total_explanation_list.extend(explanation_list)
         except:
             print('encountered_troubles')
             continue
-    df = pd.DataFrame(data = {'subject':total_subject_list, 
-                                   'question': total_question_list, 
-                                   'answer':total_answer_list, 
-                                   'letter_answer':total_letter_answer_list, 
-                                   'pure_question': total_pure_question_list, 
-                                   'correct_answer':total_correct_answer_list})
+    
+    # Create DataFrame with or without explanation column
+    df_data = {
+        'subject': total_subject_list, 
+        'question': total_question_list, 
+        'answer': total_answer_list, 
+        'letter_answer': total_letter_answer_list, 
+        'pure_question': total_pure_question_list, 
+        'correct_answer': total_correct_answer_list
+    }
+    
+    if get_explanation:
+        df_data['explanation'] = total_explanation_list
+    
+    df = pd.DataFrame(data=df_data)
     return df
