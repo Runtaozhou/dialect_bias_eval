@@ -6,10 +6,10 @@ from langchain.chains import LLMChain
 from langchain_ollama import ChatOllama
 from langchain_openai import AzureChatOpenAI
 
-os.environ["REDIS_OM_URL"] = "redis://:@localhost:6379"
-# os.environ["OPENAI_API_KEY_3"] =  "0626b133c7b5407d87aa8b93f333103"  1
-# os.environ["OPENAI_API_KEY_4"] =  "bffeba6e73e24113bf6cd0457b0360f"  3
-# os.environ["TOGETHER_API_KEY"] = "3dafbeb1fa9abba4c743b2529e18654de77fe912a3fb5a35a52985da520c0ea"  5
+# os.environ["REDIS_OM_URL"] = "redis://:@localhost:6379"
+# os.environ["OPENAI_API_KEY_3"] =  "your own api key"  1
+# os.environ["OPENAI_API_KEY_4"] =  "your own api key"  3
+# os.environ["TOGETHER_API_KEY"] = "your own api key"  5
 
 '''
 ################################################################
